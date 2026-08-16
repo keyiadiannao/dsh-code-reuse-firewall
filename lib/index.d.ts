@@ -24,6 +24,12 @@ interface Candidate {
   qualname: string;
   path: string;
   score: number;
+  /** Per-channel evidence — WHY this candidate matched (name / docstring-lexical / string-literal). */
+  channels?: {
+    name?: number;
+    lexical?: number;
+    string?: number;
+  };
   doc_first?: string;
 }
 type RetrievalOutcome = {

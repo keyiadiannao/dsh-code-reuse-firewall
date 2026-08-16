@@ -11,7 +11,7 @@ describe('dsh-code-reuse-firewall config', () => {
     const cfg = Config({ auditRoot: '/path/to/Auto_code_audit' })
     expect(cfg.pythonPath).toBe('python')
     expect(cfg.maxK).toBe(5)
-    expect(cfg.minScore).toBe(0.1)
+    expect(cfg.minScore).toBe(0.3)
     expect(cfg.timeoutMs).toBe(30_000)
   })
 

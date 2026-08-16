@@ -44,7 +44,7 @@ export const Config: z<Config> = z.object({
   auditRoot: z.string().required().min(1),
   pythonPath: z.string().default('python'),
   maxK: z.number().min(1).max(50).default(5),
-  minScore: z.number().min(0).max(1).default(0.1),
+  minScore: z.number().min(0).max(1).default(0.3),
   timeoutMs: z.number().min(1000).max(120_000).default(30_000),
 })
 
@@ -55,8 +55,13 @@ export interface Candidate {
   qualname: string
   path: string
   score: number
+  /** Per-channel evidence — WHY this candidate matched (name / docstring-lexical / string-literal). */
+  channels?: { name?: number; lexical?: number; string?: number }
   doc_first?: string
 }
+
+/** The retrieval JSON schema version we know how to parse. */
+const SCHEMA_VERSION = 1
 
 export type RetrievalOutcome =
   | { ok: true; results: Candidate[] }
@@ -89,7 +94,11 @@ export function runRetrieval(config: Config, root: string, description: string):
         return
       }
       try {
-        const parsed = JSON.parse(out) as { results?: Candidate[] }
+        const parsed = JSON.parse(out) as { schema_version?: number; results?: Candidate[] }
+        if (parsed.schema_version !== SCHEMA_VERSION) {
+          resolve({ ok: false, error: `unsupported retrieval schema_version ${String(parsed.schema_version)} (expected ${SCHEMA_VERSION}) — Auto_code_audit and this plugin are out of contract` })
+          return
+        }
         resolve({ ok: true, results: Array.isArray(parsed.results) ? parsed.results : [] })
       } catch (e) {
         resolve({ ok: false, error: `invalid JSON from retrieval: ${e instanceof Error ? e.message : String(e)}` })
@@ -101,11 +110,13 @@ export function runRetrieval(config: Config, root: string, description: string):
 export function apply(ctx: any, config: Config): void {
   ctx.tools.register({
     name: 'reuse_check',
-    description: 'Pre-write reuse firewall: BEFORE writing a new helper/service/manager, describe what you '
-      + 'are about to implement and the existing codebase root — the plugin deterministically surfaces the '
-      + 'existing implementations that already cover that intent (no LLM involved). Decide whether to REUSE, '
-      + 'extract a shared component, or write new code. The result is advisory evidence, not a verdict: never '
-      + 'delete or rewrite code based on retrieval alone. Call this before writing any new function when a '
+    description: 'Pre-write reuse firewall (Python repositories): BEFORE writing a new helper/service/manager, '
+      + 'describe what you are about to implement and the existing codebase root — the plugin deterministically '
+      + 'surfaces the existing Python implementations that already cover that intent (no LLM involved). '
+      + 'Describe in ENGLISH keywords that a function name/docstring would use (e.g. "load json config settings '
+      + 'environment env override" — Chinese-only descriptions match poorly against English code). Decide whether '
+      + 'to REUSE, extract a shared component, or write new code. The result is advisory evidence, not a verdict: '
+      + 'never delete or rewrite code based on retrieval alone. Call this before writing any new function when a '
       + 'similar capability may already exist.',
     parameters: {
       type: 'object',
@@ -149,13 +160,18 @@ export function apply(ctx: any, config: Config): void {
         },
         required: ['ok', 'root', 'description', 'candidates'],
       },
-      render: (_args: unknown, value: { ok: boolean; root: string; description: string; candidates: { existing_symbol: string; path: string; score: number }[]; error?: string }) => {
+      render: (_args: unknown, value: { ok: boolean; root: string; description: string; candidates: { existing_symbol: string; path: string; score: number; channels?: { name?: number; lexical?: number; string?: number } }[]; error?: string }) => {
         if (!value.ok) return [{ type: 'text', text: `reuse_check failed: ${value.error ?? 'unknown error'}` }]
         if (value.candidates.length === 0) {
           return [{ type: 'text', text: `No existing implementation covers "${value.description}" (root=${value.root}).` }]
         }
-        const lines = value.candidates
-          .map((c) => `  [${c.score.toFixed(3)}] ${c.existing_symbol}  (${c.path})`)
+        const lines = value.candidates.map((c) => {
+          const ch = c.channels
+          const why = ch === undefined
+            ? ''
+            : ` (name=${(ch.name ?? 0).toFixed(2)} doc=${(ch.lexical ?? 0).toFixed(2)} literal=${(ch.string ?? 0).toFixed(2)})`
+          return `  [${c.score.toFixed(3)}] ${c.existing_symbol}  (${c.path})${why}`
+        })
         return [{ type: 'text', text: `Existing implementations overlapping "${value.description}":\n${lines.join('\n')}` }]
       },
     },
@@ -175,6 +191,7 @@ export function apply(ctx: any, config: Config): void {
         qualname: r.qualname,
         path: r.path,
         score: r.score,
+        ...(r.channels === undefined ? {} : { channels: r.channels }),
         ...(r.doc_first === undefined ? {} : { doc_first: r.doc_first }),
       }))
       return { ok: true, root, description, candidates }

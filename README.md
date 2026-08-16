@@ -1,9 +1,9 @@
 # dsh-code-reuse-firewall
 
-**Pre-write reuse firewall for DeepSeek Harness** — before the agent writes a
-new helper / service / manager, `reuse_check` deterministically surfaces the
-existing implementations that already cover that intent, so the agent reuses
-or extracts instead of duplicating.
+**Pre-write reuse firewall for DeepSeek Harness — for PYTHON repositories.**
+Before the agent writes a new helper / service / manager, `reuse_check`
+deterministically surfaces the existing Python implementations that already
+cover that intent, so the agent reuses or extracts instead of duplicating.
 
 ## Why
 
@@ -80,9 +80,16 @@ name/docstring-lexical/string-literal channels. In practice:
 - A well-named existing function whose docstring matches your description WILL
   be surfaced (verified: `load_config` for "load a JSON config with env
   overrides").
+- **Describe in English keywords** a function name/docstring would use
+  (`load json config settings environment env override`). Chinese-only
+  descriptions match poorly against English code — the engine tokenizes CJK
+  into bigrams with no Chinese↔English mapping.
 - Structurally-similar-but-differently-named code (the strongest reuse signal)
   is only found AFTER code exists, via the engine's `--file` / `--base` modes —
   which are not yet exposed through this plugin.
+- Each candidate carries per-channel evidence (name / docstring / string-literal
+  scores) in the tool result, so the agent can judge WHY something matched
+  instead of trusting one blended score.
 
 So treat `reuse_check` as a **low-signal pre-write hint**, not a full reuse
 audit. The high-signal modes are roadmap items below.
@@ -94,8 +101,12 @@ audit. The high-signal modes are roadmap items below.
 | `auditRoot` | — (required) | Auto_code_audit checkout containing `capability_retrieval.py` |
 | `pythonPath` | `python` | Python interpreter for the retrieval script |
 | `maxK` | 5 | Top-K candidates per query |
-| `minScore` | 0.1 | Score floor; below it candidates are dropped |
+| `minScore` | 0.3 | Score floor (aligned with the engine's default; measured hits sit at 0.33+, lower scores are mostly noise) |
 | `timeoutMs` | 30000 | Child-process timeout — retrieval never hangs a turn |
+
+The plugin parses the retrieval JSON with a `schema_version === 1` contract
+check: if Auto_code_audit ever changes its output schema, `reuse_check` fails
+loudly with "out of contract" instead of silently mis-parsing.
 
 ## Development
 
