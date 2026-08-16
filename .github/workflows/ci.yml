@@ -20,6 +20,15 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # The integration test spawns the REAL retrieval engine: clone
+      # Auto_code_audit and hand its checkout + the interpreter to vitest.
+      - name: Clone Auto_code_audit (retrieval engine)
+        run: git clone --depth 1 https://github.com/keyiadiannao/Auto_code_audit.git vendor/Auto_code_audit
+
       - run: pnpm install --frozen-lockfile
 
       - name: Typecheck
@@ -28,5 +37,8 @@ jobs:
       - name: Build (host + client bundle)
         run: pnpm run build
 
-      - name: Test
+      - name: Test (incl. integration against real Auto_code_audit)
+        env:
+          AUDIT_ROOT: ${{ github.workspace }}/vendor/Auto_code_audit
+          PYTHON_BIN: python
         run: pnpm test

@@ -17,6 +17,24 @@ interface Config {
 }
 /** Schemastery schema; cordis validates and provides it as apply(ctx, config). */
 declare const Config: z<Config>;
+/** One retrieval candidate (shape of capability_retrieval.py --json - results[]). */
+interface Candidate {
+  existing_symbol: string;
+  name: string;
+  qualname: string;
+  path: string;
+  score: number;
+  doc_first?: string;
+}
+type RetrievalOutcome = {
+  ok: true;
+  results: Candidate[];
+} | {
+  ok: false;
+  error: string;
+};
+/** Run the deterministic retrieval channel in a child process. */
+declare function runRetrieval(config: Config, root: string, description: string): Promise<RetrievalOutcome>;
 declare function apply(ctx: any, config: Config): void;
 //#endregion
-export { Config, apply, inject, name };
+export { Candidate, Config, RetrievalOutcome, apply, inject, name, runRetrieval };

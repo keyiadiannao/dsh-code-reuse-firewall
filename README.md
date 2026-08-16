@@ -70,6 +70,23 @@ extract a shared component, or write new code — and must never delete or
 rewrite anything based on retrieval alone (the same ground rule as
 Auto_code_audit: deterministic output is evidence, not a defect verdict).
 
+### Signal-strength caveat (honest limits)
+
+A natural-language `--describe` query has NO code yet, so the retrieval engine's
+strongest signals — normalized AST structure, call-name overlap, string-literal
+overlap — cannot fire. The pre-write channel relies on the weaker
+name/docstring-lexical/string-literal channels. In practice:
+
+- A well-named existing function whose docstring matches your description WILL
+  be surfaced (verified: `load_config` for "load a JSON config with env
+  overrides").
+- Structurally-similar-but-differently-named code (the strongest reuse signal)
+  is only found AFTER code exists, via the engine's `--file` / `--base` modes —
+  which are not yet exposed through this plugin.
+
+So treat `reuse_check` as a **low-signal pre-write hint**, not a full reuse
+audit. The high-signal modes are roadmap items below.
+
 ## Configuration
 
 | Key | Default | Description |

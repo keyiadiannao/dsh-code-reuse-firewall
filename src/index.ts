@@ -49,7 +49,7 @@ export const Config: z<Config> = z.object({
 })
 
 /** One retrieval candidate (shape of capability_retrieval.py --json - results[]). */
-interface Candidate {
+export interface Candidate {
   existing_symbol: string
   name: string
   qualname: string
@@ -58,12 +58,12 @@ interface Candidate {
   doc_first?: string
 }
 
-type RetrievalOutcome =
+export type RetrievalOutcome =
   | { ok: true; results: Candidate[] }
   | { ok: false; error: string }
 
 /** Run the deterministic retrieval channel in a child process. */
-function runRetrieval(config: Config, root: string, description: string): Promise<RetrievalOutcome> {
+export function runRetrieval(config: Config, root: string, description: string): Promise<RetrievalOutcome> {
   return new Promise((resolve) => {
     const args = [
       'capability_retrieval.py',
