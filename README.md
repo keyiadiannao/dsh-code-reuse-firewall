@@ -57,12 +57,28 @@ The agent calls `reuse_check` **before writing new code**:
 > environment-variable overrides", root D:/project/src. Is there an existing
 > implementation to reuse?)
 
-The tool returns top candidates with paths and scores:
+The tool returns top candidates with paths, scores, and per-channel evidence:
 
 ```
 Existing implementations overlapping "load a JSON config with env overrides":
-  [0.72] config.py:load_config  (src/config.py)
-  [0.51] util.py:ConfigLoader.load  (src/util.py)
+  [0.72] config.py:load_config  (src/config.py) (name=0.72 doc=0.10 literal=0.00)
+  [0.51] util.py:ConfigLoader.load  (src/util.py) (name=0.51 doc=0.00 literal=0.00)
+```
+
+**Hash-locked candidates are flagged.** When an existing implementation lives
+in a file pinned by a frozen-JSON provenance manifest (e.g.
+`current_dependency_files` / `files_sha256` in `frozen_results/` or `configs/`),
+the tool marks it 🔒 LOCKED with the locking manifests. Editing such a file
+invalidates the frozen results that reference it — the correct reuse is to
+**import** it, never to copy-and-modify its implementation. Derived run-output
+trees (`outputs/`, `reports/`, `logs/`, `runs/`, `cache/`) are treated as
+snapshots, not edit constraints, so scripts that merely appear in run metadata
+are not falsely flagged.
+
+```
+  [0.32] lib/protocol.py:_split_hash_payload  (lib/protocol.py) (name=0.32) 🔒 LOCKED by configs/generation_b_training_compatibility.json
+
+⚠ 1 candidate(s) are in hash-locked files: REUSE by import, do not copy-and-modify their implementation (editing invalidates frozen results).
 ```
 
 **Advisory evidence, not a verdict.** The agent decides whether to reuse,

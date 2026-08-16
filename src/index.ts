@@ -58,6 +58,15 @@ export interface Candidate {
   /** Per-channel evidence — WHY this candidate matched (name / docstring-lexical / string-literal). */
   channels?: { name?: number; lexical?: number; string?: number }
   doc_first?: string
+  /**
+   * True when the candidate lives in a file hash-locked by frozen-JSON
+   * provenance manifests (Auto_code_audit `discover_locked_files`). Editing
+   * such a file invalidates the frozen results that pin it — the correct
+   * reuse is to IMPORT it, never to copy-and-modify its implementation.
+   */
+  locked?: boolean
+  /** The frozen-JSON manifests that pin the candidate's file. */
+  locked_by?: string[]
 }
 
 /** The retrieval JSON schema version we know how to parse. */
@@ -152,6 +161,8 @@ export function apply(ctx: any, config: Config): void {
                 path: { type: 'string' },
                 score: { type: 'number' },
                 doc_first: { type: 'string' },
+                locked: { type: 'boolean' },
+                locked_by: { type: 'array', items: { type: 'string' } },
               },
               required: ['existing_symbol', 'name', 'qualname', 'path', 'score'],
             },
@@ -160,7 +171,7 @@ export function apply(ctx: any, config: Config): void {
         },
         required: ['ok', 'root', 'description', 'candidates'],
       },
-      render: (_args: unknown, value: { ok: boolean; root: string; description: string; candidates: { existing_symbol: string; path: string; score: number; channels?: { name?: number; lexical?: number; string?: number } }[]; error?: string }) => {
+      render: (_args: unknown, value: { ok: boolean; root: string; description: string; candidates: { existing_symbol: string; path: string; score: number; locked?: boolean; locked_by?: string[]; channels?: { name?: number; lexical?: number; string?: number } }[]; error?: string }) => {
         if (!value.ok) return [{ type: 'text', text: `reuse_check failed: ${value.error ?? 'unknown error'}` }]
         if (value.candidates.length === 0) {
           return [{ type: 'text', text: `No existing implementation covers "${value.description}" (root=${value.root}).` }]
@@ -170,9 +181,16 @@ export function apply(ctx: any, config: Config): void {
           const why = ch === undefined
             ? ''
             : ` (name=${(ch.name ?? 0).toFixed(2)} doc=${(ch.lexical ?? 0).toFixed(2)} literal=${(ch.string ?? 0).toFixed(2)})`
-          return `  [${c.score.toFixed(3)}] ${c.existing_symbol}  (${c.path})${why}`
+          const lock = c.locked
+            ? ` 🔒 LOCKED${c.locked_by?.length ? ` by ${c.locked_by.join(', ')}` : ''}`
+            : ''
+          return `  [${c.score.toFixed(3)}] ${c.existing_symbol}  (${c.path})${why}${lock}`
         })
-        return [{ type: 'text', text: `Existing implementations overlapping "${value.description}":\n${lines.join('\n')}` }]
+        const lockedCount = value.candidates.filter((c) => c.locked).length
+        const note = lockedCount > 0
+          ? `\n\n⚠ ${lockedCount} candidate(s) are in hash-locked files: REUSE by import, do not copy-and-modify their implementation (editing invalidates frozen results).`
+          : ''
+        return [{ type: 'text', text: `Existing implementations overlapping "${value.description}":\n${lines.join('\n')}${note}` }]
       },
     },
     async execute(args: { description: string; root: string }) {
@@ -193,6 +211,8 @@ export function apply(ctx: any, config: Config): void {
         score: r.score,
         ...(r.channels === undefined ? {} : { channels: r.channels }),
         ...(r.doc_first === undefined ? {} : { doc_first: r.doc_first }),
+        ...(r.locked === undefined ? {} : { locked: r.locked }),
+        ...(r.locked_by === undefined ? {} : { locked_by: r.locked_by }),
       }))
       return { ok: true, root, description, candidates }
     },

@@ -31,6 +31,15 @@ interface Candidate {
     string?: number;
   };
   doc_first?: string;
+  /**
+   * True when the candidate lives in a file hash-locked by frozen-JSON
+   * provenance manifests (Auto_code_audit `discover_locked_files`). Editing
+   * such a file invalidates the frozen results that pin it — the correct
+   * reuse is to IMPORT it, never to copy-and-modify its implementation.
+   */
+  locked?: boolean;
+  /** The frozen-JSON manifests that pin the candidate's file. */
+  locked_by?: string[];
 }
 type RetrievalOutcome = {
   ok: true;

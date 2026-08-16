@@ -32,6 +32,19 @@ function makeFixtureRepo(): string {
   return dir
 }
 
+/** Fixture repo where the reusable implementation is hash-locked by a frozen manifest. */
+function makeLockedFixtureRepo(): string {
+  const dir = makeFixtureRepo()
+  mkdirSync(join(dir, 'configs'))
+  writeFileSync(join(dir, 'configs', 'frozen.json'), JSON.stringify({
+    audit_id: 'test-compat-v1',
+    current_dependency_files: {
+      'existing.py': 'a'.repeat(64),
+    },
+  }))
+  return dir
+}
+
 describe.skipIf(AUDIT_ROOT === undefined || AUDIT_ROOT.length === 0)(
   'reuse_check integration (real Auto_code_audit)',
   () => {
@@ -62,6 +75,30 @@ describe.skipIf(AUDIT_ROOT === undefined || AUDIT_ROOT.length === 0)(
       expect(outcome.ok).toBe(true)
       if (!outcome.ok) return
       expect(outcome.results.find((c) => c.path.endsWith('existing.py'))).toBeUndefined()
+    })
+
+    it('marks candidates in frozen-JSON hash-locked files', async () => {
+      const locked = makeLockedFixtureRepo()
+      try {
+        const outcome = await runRetrieval(config, locked, 'load a json config with environment variable overrides')
+        expect(outcome.ok).toBe(true)
+        if (!outcome.ok) return
+        const hit = outcome.results.find((c) => c.path === 'existing.py' && c.name === 'load_config')
+        expect(hit).toBeDefined()
+        expect(hit!.locked).toBe(true)
+        expect(hit!.locked_by).toEqual(['configs/frozen.json'])
+      } finally {
+        rmSync(locked, { recursive: true, force: true })
+      }
+    })
+
+    it('leaves unlocked candidates unflagged', async () => {
+      const outcome = await runRetrieval(config, fixture!, 'load a json config with environment variable overrides')
+      expect(outcome.ok).toBe(true)
+      if (!outcome.ok) return
+      const hit = outcome.results.find((c) => c.path === 'existing.py' && c.name === 'load_config')
+      expect(hit).toBeDefined()
+      expect(hit!.locked).toBe(false)
     })
 
     it('surfaces a spawn error instead of hanging or throwing', async () => {
