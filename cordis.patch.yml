@@ -1,0 +1,4 @@
+# dsh-code-reuse-firewall bundle patch: mount into the profile.
+- insert:
+    - id: dsh-code-reuse-firewall
+      name: 'dsh-code-reuse-firewall'
