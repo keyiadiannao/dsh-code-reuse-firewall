@@ -41,7 +41,7 @@ export interface Config {
 
 /** Schemastery schema; cordis validates and provides it as apply(ctx, config). */
 export const Config: z<Config> = z.object({
-  auditRoot: z.string().min(1),
+  auditRoot: z.string().required().min(1),
   pythonPath: z.string().default('python'),
   maxK: z.number().min(1).max(50).default(5),
   minScore: z.number().min(0).max(1).default(0.1),
